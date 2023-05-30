@@ -71,7 +71,7 @@ func TestGetAuthorById(t *testing.T) {
 
 	db.Create(mockAuthor)
 
-	req, _ := http.NewRequest("GET", "/authors/1", nil)
+	req, _ := http.NewRequest("GET", "/authors/2", nil)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)

@@ -43,6 +43,8 @@ func GetBookParams(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		limit := 3
+		fmt.Printf("Offset: %d\n", offset)
+		fmt.Printf("Limit: %d\n", limit)
 
 		params := c.Request.URL.Query()
 

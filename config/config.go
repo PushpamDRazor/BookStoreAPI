@@ -8,7 +8,7 @@ import (
 )
 
 func LoadConfig() *gorm.DB {
-	dsn := "root:J4C7ukpk@tcp(localhost:3306)/restapi?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:Ramgarh@186948@tcp(localhost:3306)/project1?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)
