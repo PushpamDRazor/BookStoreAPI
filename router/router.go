@@ -12,20 +12,19 @@ import (
 )
 
 func SetupRouter(r *gin.Engine, db *gorm.DB) {
-	r.GET("/books", lmsBook.GetBooks(db))
-	r.GET("/books/:params", lmsBook.GetBookParams(db, "params"))
+	r.GET("/books/:id", lmsBook.GetBookById(db))
+	r.GET("/books", lmsBook.GetBookParams(db))
 	r.POST("/books", lmsBook.CreateBooks(db))
 	r.PATCH("/books/:id", lmsBook.UpdateBooks(db))
 	r.DELETE("/books/:id", lmsBook.DeleteBook(db))
 
 	r.POST("/authors", lmsAuthor.CreateAuthor(db))
-	r.GET("/authors", lmsAuthor.GetAuthor(db))
 	r.GET("/authors/:id", lmsAuthor.GetAuthorById(db))
-	r.GET("/getAuthors", lmsAuthor.GetAuthorParams(db))
+	r.GET("/authors", lmsAuthor.GetAuthorParams(db))
 	r.PATCH("/authors/:id", lmsAuthor.UpdateAuthor(db))
 	r.DELETE("/authors/:id", lmsAuthor.DeleteAuthor(db))
 
-	r.GET("/genres", lmsGenre.GetGenres(db))
+	r.GET("/genres", lmsGenre.GetGenresByParams(db))
 	r.GET("/genres/:id", lmsGenre.GetGenreById(db))
 	r.POST("/genres", lmsGenre.CreateGenre(db))
 	r.PATCH("/genres/:id", lmsGenre.UpdateGenre(db))

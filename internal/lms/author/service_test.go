@@ -10,12 +10,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateAuthor(t *testing.T) {
 	router := gin.Default()
 
 	db := config.LoadConfig()
+	db.Exec("TRUNCATE TABLE authors;")
 
 	router.POST("/authors", CreateAuthor(db))
 
@@ -44,17 +46,50 @@ func TestCreateAuthor(t *testing.T) {
 		t.Errorf("Error parsing response body: %v", err)
 	}
 
-	// assert.Equal(t, )
-	if createdAuthor.AuthorName != authorPayload.AuthorName {
-		t.Errorf("Expected AuthorName to be %s but got %s", authorPayload.AuthorName, createdAuthor.AuthorName)
+	assert.Equal(t, authorPayload.AuthorName, createdAuthor.AuthorName)
+	assert.Equal(t, "2023-02-25", createdAuthor.DateOfBirth)
+	assert.Equal(t, authorPayload.Nationality, createdAuthor.Nationality)
+	assert.Equal(t, authorPayload.Biography, createdAuthor.Biography)
+}
+
+func TestGetAuthorById(t *testing.T) {
+	router := gin.Default()
+	db := config.LoadConfig()
+	db.Exec("TRUNCATE TABLE authors;")
+	router.GET("/authors/:id", GetAuthorById(db))
+
+	mockAuthor := &author.Author{
+		ID:          1,
+		AuthorName:  "John Doe",
+		Biography:   "Male",
+		DateOfBirth: "2023-02-25",
+		Nationality: "American",
+		CreatedAt:   "2023-05-28 12:34:56",
+		UpdatedAt:   "2023-05-28 12:34:56",
+		IsDeleted:   false,
 	}
-	if createdAuthor.DateOfBirth != "2023-02-25" {
-		t.Errorf("Expected DateOfBirth to be %s but got %s", "2023-06-26", createdAuthor.DateOfBirth)
+
+	db.Create(mockAuthor)
+
+	req, _ := http.NewRequest("GET", "/authors/1", nil)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d but got %d", http.StatusOK, resp.Code)
 	}
-	if createdAuthor.Nationality != authorPayload.Nationality {
-		t.Errorf("Expected Nationality to be %s but got %s", authorPayload.Nationality, createdAuthor.Nationality)
+
+	var fetchedAuthors []author.Author
+	err := json.Unmarshal(resp.Body.Bytes(), &fetchedAuthors)
+	if err != nil {
+		t.Errorf("Error parsing response body: %v", err)
 	}
-	if createdAuthor.Biography != authorPayload.Biography {
-		t.Errorf("Expected Biography to be %s but got %s", authorPayload.Biography, createdAuthor.Biography)
-	}
+
+	fetchedAuthor := fetchedAuthors[0]
+	assert.Equal(t, 1, fetchedAuthor.ID)
+	assert.Equal(t, mockAuthor.AuthorName, fetchedAuthor.AuthorName)
+	assert.Equal(t, "2023-02-25", fetchedAuthor.DateOfBirth)
+	assert.Equal(t, mockAuthor.Nationality, fetchedAuthor.Nationality)
+	assert.Equal(t, mockAuthor.Biography, fetchedAuthor.Biography)
 }

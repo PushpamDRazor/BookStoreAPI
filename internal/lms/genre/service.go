@@ -12,18 +12,81 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetGenres(db *gorm.DB) gin.HandlerFunc {
+func GetGenresByParams(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		var genres []genre.Genre
-		result := db.Where("genres.is_deleted = ?", false).Find(&genres)
-		if result.Error != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Books not found"})
+		page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+		if err != nil || page < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
 			return
 		}
-		c.JSON(http.StatusOK, genres)
+
+		limit := 10
+		offset := (page - 1) * limit
+		params := c.Request.URL.Query()
+
+		var genres []genre.Genre
+		var result *gorm.DB
+		if len(params) == 0 {
+			result = db.Where("genres.is_deleted = ?", false).Limit(limit).Offset(offset).Find(&genres)
+			if result.Error != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Genres not found"})
+				return
+			}
+		} else {
+			for paramType, j := range params {
+				switch paramType {
+				case "author_id":
+					for _, paramValue := range j {
+						authorID, err := strconv.Atoi(paramValue)
+						if err != nil {
+							c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid author ID"})
+							return
+						}
+
+						result = db.Table("genres").
+							Joins("INNER JOIN books ON genres.id = books.genre_id").
+							Joins("INNER JOIN books ON authors.id = books.author_id").
+							Where("authors.id = ?", authorID).Limit(limit).Offset(offset).
+							Find(&genres)
+
+					}
+				// case "book_id":
+				// 	for _, paramValue := range j {
+				// 		bookID, err := strconv.Atoi(paramValue)
+				// 		if err != nil {
+				// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid book ID"})
+				// 			return
+				// 		}
+
+				// 		result = db.Table("genres").
+				// 		Joins("INNER JOIN books ON genres.id = books.genre_id").
+				// 		Joins("INNER JOIN books ON authors.id = books.author_id").
+				// 		Where("authors.id = ?", authorID).Limit(limit).Offset(offset).
+				// 		Find(&genres)
+				// 	}
+				default:
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid paramType"})
+					return
+
+				}
+
+			}
+			if result.Error != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query genres"})
+				return
+			}
+		}
+
+		nextPage := page + 1
+
+		c.JSON(http.StatusOK, gin.H{
+			"genres":    genres,
+			"next_page": nextPage,
+		})
 	}
 }
+
 
 func GetGenreById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {

@@ -14,61 +14,106 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetBooks(db *gorm.DB) gin.HandlerFunc {
+func GetBookById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-
-		var books []book.Book
-		result := db.Where("books.is_deleted = ?", false).Find(&books)
-		if result.Error != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Books not found"})
-			return
-		}
-		c.JSON(http.StatusOK, books)
-	}
-}
-
-func GetBookParams(db *gorm.DB, params string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		param, err := strconv.Atoi(c.Param(params))
+		id, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
-
-			param := c.Param(params)
-
-			var books []book.Book
-			result := db.Find(&books, param)
-			if result.Error != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
-				return
-			}
-			c.JSON(http.StatusOK, books)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Book ID"})
 			return
 		}
 
-		var books []book.Book
-		result := db.First(&books, param)
+		var book []book.Book
+		result := db.First(&book, id)
 		if result.Error != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Book not found"})
 			return
 		}
-		c.JSON(http.StatusOK, books)
+		c.JSON(http.StatusOK, book)
+	}
+}
+
+func GetBookParams(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		offsetStr := c.DefaultQuery("offset", "0")
+		offset, err := strconv.Atoi(offsetStr)
+		if err != nil || offset < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid offset value"})
+			return
+		}
+
+		limit := 3
+
+		params := c.Request.URL.Query()
+
+		var books []book.Book
+		var result *gorm.DB
+		if len(params) == 0 {
+			result = db.Where("books.is_deleted = ?", false).Limit(limit).Offset(offset).Find(&books)
+			if result.Error != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Books not found"})
+				return
+			}
+		} else {
+			for paramType, j := range params {
+				switch paramType {
+				case "genre_name":
+					for _, paramValue := range j {
+						genreID, err := strconv.Atoi(paramValue)
+						if err != nil {
+							c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid genre ID"})
+							return
+						}
+
+						result = db.Table("books").
+							Where("books.genre_id = ?", genreID).Limit(limit).Offset(offset).
+							Find(&books)
+
+					}
+				case "author_name":
+					for _, paramValue := range j {
+						result = db.Where("author_name = ?", paramValue).Limit(limit).Offset(offset).
+							Find(&books)
+					}
+				case "offset":
+					continue
+				default:
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid paramType"})
+					return
+
+				}
+
+			}
+			if result.Error != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query books"})
+				return
+			}
+		}
+
+		nextOffset := offset + limit
+
+		c.JSON(http.StatusOK, gin.H{
+			"books":       books,
+			"next_offset": nextOffset,
+		})
 	}
 }
 
 func CreateBooks(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		var book book.Book
-		err := c.ShouldBindJSON(&book)
-		if err != nil {
+		var boook book.Book
+		err := c.ShouldBindJSON(&boook)
+		if err != nil || boook.Title == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 			return
 		}
 
-		genrename := book.GenreName
-		authorname := book.AuthorName
+		genrename := boook.GenreName
+		authorname := boook.AuthorName
 
 		now := time.Now()
-		book.CreatedAt = fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d",
+		boook.CreatedAt = fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d",
 			now.Year(),
 			now.Month(),
 			now.Day(),
@@ -76,7 +121,7 @@ func CreateBooks(db *gorm.DB) gin.HandlerFunc {
 			now.Minute(),
 			now.Second())
 
-		book.UpdatedAt = book.CreatedAt
+		boook.UpdatedAt = boook.CreatedAt
 
 		var author author.Author
 		result := db.Table("authors").
@@ -87,9 +132,9 @@ func CreateBooks(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		book.AuthorId = author.ID
+		boook.AuthorId = author.ID
 
-		parsedInteger, err := strconv.ParseInt(book.PublicationDate, 10, 64)
+		parsedInteger, err := strconv.ParseInt(boook.PublicationDate, 10, 64)
 		if err != nil {
 			fmt.Println("Error parsing integer:", err)
 			return
@@ -100,7 +145,13 @@ func CreateBooks(db *gorm.DB) gin.HandlerFunc {
 		epochTime := time.Unix(epochTimeSeconds, 0)
 
 		epochDateString := epochTime.Format("2006-01-02")
-		book.PublicationDate = epochDateString
+		boook.PublicationDate = epochDateString
+
+		result = db.Table("books").Where("title = ? AND author_name = ? AND genre_name = ? AND publication_date = ?", boook.Title, boook.AuthorName, boook.GenreName, boook.PublicationDate).First(&boook)
+		if result.Error == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Book already created"})
+			return
+		}
 
 		var genre genre.Genre
 		result = db.Table("genres").
@@ -111,15 +162,15 @@ func CreateBooks(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		book.GenreId = genre.ID
+		boook.GenreId = genre.ID
 
-		result = db.Create(&book)
+		result = db.Create(&boook)
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create a new book"})
 			return
 		}
 
-		c.JSON(http.StatusCreated, book)
+		c.JSON(http.StatusCreated, boook)
 	}
 }
 

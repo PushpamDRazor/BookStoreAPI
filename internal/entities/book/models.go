@@ -8,7 +8,7 @@ type Book struct {
 	GenreName       string `gorm:"not null" json:"genre_name"`
 	GenreId         int    `gorm:"not null" json:"genre_id"`
 	PublicationDate string `gorm:"not null" json:"publication_date"`
-	CreatedAt       string `gorm:"create_time"`
-	UpdatedAt       string `gorm:"update_time"`
+	CreatedAt       string `gorm:"create_time" json:"created_at"`
+	UpdatedAt       string `gorm:"update_time" json:"updated_at"`
 	IsDeleted       bool   `json:"is_deleted"`
 }

@@ -25,11 +25,16 @@ func StoreBook(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Book ID is required"})
 			return
 		}
-
+		var books []book.Book
 		var existingBook library.Library
 		result := db.Where("aisle = ? AND level = ? AND position = ?", lib.Aisle, lib.Level, lib.Position).First(&existingBook)
 		if result.Error == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Position already occupied"})
+			return
+		}
+		result = db.Table("books").Where("books.id = ?", lib.Book_ID).Where("books.is_deleted = ?", false).First(&books)
+		if result.Error != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Book is not present in the store"})
 			return
 		}
 
@@ -53,20 +58,22 @@ func StoreBook(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusCreated, lib)
 	}
 }
+
 func GetPositionByID(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		bookID := c.Param("id")
 
 		var library library.Library
-		if err := db.Where("id = ?", bookID).First(&library).Error; err != nil || library.IsDeleted {
+		if err := db.Where("book_id = ?", bookID).First(&library).Error; err != nil || library.IsDeleted {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Book not found"})
 			return
 		}
+		book_id := library.Book_ID
 		position := library.Position
 		aisle := library.Aisle
 		level := library.Level
 
-		c.JSON(http.StatusOK, gin.H{"aisle": aisle, "level": level, "position": position})
+		c.JSON(http.StatusOK, gin.H{"book_id": book_id, "aisle": aisle, "level": level, "position": position})
 	}
 }
 
@@ -107,7 +114,7 @@ func GetBooksPositionByAuthor(db *gorm.DB) gin.HandlerFunc {
 		var bookPositions []library.Library
 		for _, book := range book {
 			var lib library.Library
-			result = db.Table("library").Where("id = ?", book.ID).First(&lib)
+			result = db.Table("libraries").Where("book_id = ?", book.ID).First(&lib)
 			if result.Error != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve book position"})
 				return
